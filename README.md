@@ -20,18 +20,15 @@ python3 -m http.server 8000     # 浏览器打开 http://localhost:8000
 
 ## iPhone Duo 南京取货库存监控
 
-`apple-monitor/` 是一个独立的小工具：每 20 秒查询一次 Apple 官网，看南京三家
+`apple-monitor/index.html` 是一个独立的小工具：每 20 秒查询一次 Apple 官网，看南京三家
 Apple Store（新街口、玄武湖、虹悦城）能否门店取货 iPhone Duo，8 个型号都查
 （256GB / 512GB / 1TB / 2TB × 星光白色 / 夜空色）。有货时会高亮对应型号并响铃，
 直到点「知道了」才停。
 
-Apple 官网不允许网页跨域查询，所以要在自己电脑上运行一个本地服务（不需要装依赖）：
+Apple 官网不允许其他网站读取库存，所以监控以书签的形式在 apple.com.cn 页面里运行：
 
-```bash
-python3 apple-monitor/server.py          # 浏览器打开 http://localhost:8765
-python3 apple-monitor/server.py --demo   # 演示模式，随机模拟有货，用来试听提醒音
-```
+1. 打开 `apple-monitor/index.html`（GitHub Pages 上是 `/apple-monitor/`），把「Duo 南京库存」按钮拖到书签栏
+2. 打开 <https://www.apple.com.cn/shop/buy-iphone/iphone-duo>
+3. 点这个书签，监控面板会盖在页面上开始工作；点一下面板顶部的蓝条启用声音
 
-- 打开页面后点一下顶部蓝色横条，启用声音（浏览器要求）和桌面通知
-- 想用同一 Wi-Fi 下的手机查看：加 `--host 0.0.0.0`，手机访问 `http://电脑IP:8765`
-- 页面要一直开着，电脑不要休眠
+页面要一直开着，电脑不要休眠。页面上有「演示」按钮，可以先试听提醒音。
