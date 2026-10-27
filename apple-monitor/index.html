@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>iPhone Duo 南京库存监控</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="南京 Apple Store 线下取货 iPhone Duo 库存监控：每 20 秒查询一次，有货高亮并响铃提醒。">
+<style>
+  /* 布局：单栏说明页，三家门店 → 三步启用 → 手机用法 */
+  :root {
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --text: #15181e;
+    --muted: #646b79;
+    --line: #dfe3ea;
+    --accent: #0b63ce;
+    --stock: #13853f;
+    --stock-soft: #e3f4ea;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --surface: #191c22; --text: #e7e9ee; --muted: #9aa1ae; --line: #2b3039;
+      --accent: #4c9bff; --stock: #34c56b; --stock-soft: #15301f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --surface: #191c22; --text: #e7e9ee; --muted: #9aa1ae; --line: #2b3039;
+    --accent: #4c9bff; --stock: #34c56b; --stock-soft: #15301f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 var(--font); }
+  .wrap {
+    max-width: 640px; margin: 0 auto;
+    padding-block: 28px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 22px;
+  }
+  h1, h2 { margin: 0; text-wrap: balance; }
+  p { margin: 0; }
+  a { color: var(--accent); }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--stock); }
+  h1 { font-size: 30px; line-height: 1.2; font-weight: 800; margin-top: 6px; }
+  .lead { color: var(--muted); margin-top: 10px; }
+
+  .stores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .store { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .store b { display: block; font-size: 15px; }
+  .store span { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .store code { font: 11px var(--mono); color: var(--muted); }
+
+  .models { font-size: 13px; color: var(--muted); }
+  .models b { color: var(--text); font-weight: 600; }
+
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: step;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px;
+    padding: 18px 16px; border-bottom: 1px solid var(--line); }
+  ol.steps > li:last-child { border-bottom: none; }
+  ol.steps > li::before { content: counter(step); width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    background: var(--text); color: var(--bg); }
+  .step h2 { font-size: 16px; line-height: 30px; }
+  .step p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  kbd { font: 12px var(--mono); padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; background: var(--bg); color: var(--text); }
+
+  .bm-zone { margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px; border: 2px dashed var(--line); border-radius: 12px; }
+  .bookmark { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; cursor: grab;
+    background: var(--stock); color: #fff; font-weight: 700; font-size: 15px;
+    padding: 10px 18px; border-radius: 999px; box-shadow: 0 4px 14px color-mix(in srgb, var(--stock) 35%, transparent); }
+  .bookmark:active { cursor: grabbing; }
+  .bookmark::before { content: ""; width: 10px; height: 13px; background: #fff;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); }
+  .bm-hint { font-size: 13px; color: var(--muted); }
+  .note { font-size: 13px; color: var(--stock); font-weight: 600; min-height: 1em; }
+
+  .btn { font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 10px;
+    padding: 9px 16px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:focus-visible, .bookmark:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .row a.btn { text-decoration: none; }
+
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 4px 16px; }
+  summary { cursor: pointer; font-weight: 700; padding: 12px 0; }
+  details ol { margin: 0 0 8px; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  details ol li { margin-bottom: 6px; }
+  details p { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  textarea { width: 100%; height: 90px; font: 11px/1.4 var(--mono); color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; margin-top: 10px; }
+
+  footer { font-size: 12px; color: var(--muted); line-height: 1.8; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">南京 · 门店取货</div>
+    <h1>iPhone Duo 库存监控</h1>
+    <p class="lead">每 20 秒查一次南京三家 Apple Store 能不能取货。任意版本有货时，对应型号会高亮，并持续响铃，直到你点「知道了」。</p>
+  </header>
+
+  <section class="stores" aria-label="监控的门店">
+    <div class="store"><b>新街口</b><span>中山路 100 号</span><code>R493</code></div>
+    <div class="store"><b>玄武湖</b><span>中央路 201 号</span><code>R703</code></div>
+    <div class="store"><b>虹悦城</b><span>应天大街 619 号</span><code>R643</code></div>
+  </section>
+  <p class="models">监控全部 8 个版本：<b>256GB · 512GB · 1TB · 2TB</b>，每种容量都有<b>星光白色</b>和<b>夜空色</b>。</p>
+
+  <ol class="steps">
+    <li class="step">
+      <div>
+        <h2>把这个按钮拖到浏览器的书签栏</h2>
+        <p>Apple 官网不允许其他网站读取库存，所以监控要在 Apple 官网页面里运行，用书签来启动。看不到书签栏？按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>（Mac 用 <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>）。</p>
+        <div class="bm-zone">
+          <a class="bookmark" id="bookmark" href="#">Duo 南京库存</a>
+          <span class="bm-hint">按住拖到上方书签栏，不要直接点</span>
+        </div>
+        <p class="note" id="bmNote" aria-live="polite"></p>
+      </div>
+    </li>
+    <li class="step">
+      <div>
+        <h2>打开 Apple 官网的 iPhone Duo 页面</h2>
+        <p>Apple 中国官网任何页面都行，这个页面方便有货时直接下单。</p>
+        <div class="row"><a class="btn primary" href="https://www.apple.com.cn/shop/buy-iphone/iphone-duo" target="_blank" rel="noopener">打开 apple.com.cn ›</a></div>
+      </div>
+    </li>
+    <li class="step">
+      <div>
+        <h2>在那个页面点书签「Duo 南京库存」</h2>
+        <p>监控面板会盖在 Apple 页面上，立刻开始查询。点一下面板顶部的蓝条启用声音。之后保持这个标签页开着，电脑不要休眠。</p>
+        <div class="row"><button class="btn" id="demoBtn">先试试演示（模拟有货，会响铃）</button></div>
+      </div>
+    </li>
+  </ol>
+
+  <details>
+    <summary>在手机上用</summary>
+    <ol>
+      <li>点下面的按钮复制书签代码。</li>
+      <li>在浏览器里随便收藏一个网页，然后编辑这个书签：名称改成「Duo库存」，网址整个替换成刚复制的代码。</li>
+      <li>打开 apple.com.cn。Safari 从书签列表点「Duo库存」；Chrome 在地址栏输入「Duo库存」，点出现的书签。</li>
+    </ol>
+    <p>手机锁屏或切到别的应用后，浏览器会暂停监控，所以更推荐用电脑。</p>
+    <button class="btn" id="copyBtn">复制书签代码</button>
+    <textarea id="codeBox" readonly hidden aria-label="书签代码"></textarea>
+    <p class="note" id="copyNote" aria-live="polite"></p>
+  </details>
+
+  <footer>非 Apple 官方工具。只读取 Apple 官网公开的门店取货信息，不会下单，也不收集任何信息。<br>库存以 Apple 官网为准，有货请尽快下单。</footer>
+</main>
+
+<script>
+// 监控本体：作为书签在 apple.com.cn 页面里运行（同源，才能读到库存接口）
+function duoMonitor(opts) {
+  const demo = !!(opts && opts.demo);
+  const BUY = 'https://www.apple.com.cn/shop/buy-iphone/iphone-duo';
+  if (!demo && location.hostname !== 'www.apple.com.cn') { location.href = BUY; return; }
+  if (window.__duoMonitor) return;
+  window.__duoMonitor = true;
+
+  const INTERVAL = 20;     /* 秒 */
+  const RING_EVERY = 4;    /* 有货未确认时，每 4 秒响一次 */
+  const STORES = [['R493', '新街口'], ['R703', '玄武湖'], ['R643', '虹悦城']];
+  const MODELS = [
+    ['MK2M4CH/A', '256GB', '星光白色', 15999], ['MK2N4CH/A', '256GB', '夜空色', 15999],
+    ['MK2P4CH/A', '512GB', '星光白色', 17999], ['MK2Q4CH/A', '512GB', '夜空色', 17999],
+    ['MK2T4CH/A', '1TB', '星光白色', 21499], ['MK2U4CH/A', '1TB', '夜空色', 21499],
+    ['MK2V4CH/A', '2TB', '星光白色', 26499], ['MK2W4CH/A', '2TB', '夜空色', 26499],
+  ];
+  const SWATCH = { '星光白色': '#f1efe9', '夜空色': '#2b3240' };
+  const STATUS = { available: '有货', unavailable: '无货', ineligible: '不可取货' };
+
+  /* ---------- 查询 ---------- */
+  async function query(parts) {
+    let q = 'fae=true&pl=true&mts.0=regular&searchNearby=true&store=' + STORES[0][0];
+    parts.forEach((p, i) => { q += '&parts.' + i + '=' + encodeURIComponent(p); });
+    const res = await fetch('/shop/fulfillment-messages?' + q, { headers: { Accept: 'application/json' } });
+    if (res.status === 541) throw new Error('Apple 暂时拒绝了查询（541），通常是查得太频繁，会自动重试');
+    if (!res.ok) throw new Error('Apple 返回 HTTP ' + res.status);
+    let msg = null;
+    try { msg = (await res.json()).body.content.pickupMessage; } catch (e) {}
+    if (!msg) throw new Error('Apple 返回的不是库存数据，接口可能有变化');
+    if (msg.errorMessage) throw new Error('Apple：' + msg.errorMessage);
+    return msg.stores || [];
+  }
+
+  async function fetchStock() {
+    if (demo) return demoStock();
+    const table = {};
+    const merge = raw => raw.forEach(s => {
+      const known = STORES.find(x => x[0] === s.storeNumber);
+      if (!known && (s.city || '').indexOf('南京') < 0) return;
+      const t = table[s.storeNumber] || (table[s.storeNumber] = { name: known ? known[1] : s.storeName, avail: {} });
+      for (const [p, a] of Object.entries(s.partsAvailability || {})) {
+        t.avail[p] = { status: a.pickupDisplay || 'unknown', quote: a.pickupSearchQuote || '' };
+      }
+    });
+    /* Apple 购买页每次最多查 3 个型号（maxParamsPerURL），照此分批；漏掉的型号逐个补查 */
+    for (let i = 0; i < MODELS.length; i += 3) {
+      const chunk = MODELS.slice(i, i + 3).map(m => m[0]);
+      const raw = await query(chunk);
+      merge(raw);
+      for (const p of chunk) {
+        if (!raw.some(s => s.partsAvailability && s.partsAvailability[p])) merge(await query([p]));
+      }
+    }
+    const order = STORES.map(s => s[0]);
+    const nums = Object.keys(table).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    if (!nums.length) throw new Error('Apple 没有返回南京门店的数据');
+    return nums.map(n => ({ number: n, name: table[n].name, avail: table[n].avail }));
+  }
+
+  let demoFirst = true;
+  function demoStock() {
+    const stores = STORES.map(([number, name]) => ({ number, name, avail: Object.fromEntries(MODELS.map(([p]) =>
+      [p, Math.random() < 0.08 ? { status: 'available', quote: '今天' } : { status: 'unavailable', quote: '' }])) }));
+    if (demoFirst) {
+      demoFirst = false;
+      stores[2].avail[MODELS[5][0]] = { status: 'available', quote: '今天' };
+    }
+    return stores;
+  }
+
+  /* ---------- 界面（Shadow DOM，不受 Apple 页面样式影响） ---------- */
+  const CSS = `
+    :host { all: initial; }
+    [hidden] { display: none !important; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .panel {
+      --bg: #f4f5f7; --card: #fff; --text: #1a1a1a; --sub: #7d838e; --line: #eceef1; --accent: #0b63ce;
+      --hit: #16a34a; --hit-soft: #e7f8ee; --warn: #c9372c; --warn-soft: #fdecea;
+      position: fixed; inset: 0; overflow: auto; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      .panel { --bg: #101114; --card: #1a1c20; --text: #e8eaed; --sub: #9aa0a6; --line: #2a2d33;
+        --accent: #4c9bff; --hit: #22c55e; --hit-soft: #13301f; --warn: #f87171; --warn-soft: #3a1f1c; color-scheme: dark; }
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 28px max(16px, env(safe-area-inset-left, 0px));
+      display: flex; flex-direction: column; gap: 12px; }
+    .head { display: flex; align-items: flex-start; gap: 12px; }
+    h1 { font-size: 22px; font-weight: 800; flex: 1; }
+    h1 small { font-size: 14px; font-weight: 600; color: var(--sub); margin-left: 6px; }
+    .meta { margin-top: 4px; font-size: 13px; color: var(--sub); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-variant-numeric: tabular-nums; }
+    .live { width: 8px; height: 8px; border-radius: 50%; background: var(--hit); box-shadow: 0 0 0 3px var(--hit-soft); }
+    .live.bad { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+    .tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 20px; background: var(--warn-soft); color: var(--warn); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--card); color: var(--text); }
+    button:focus-visible, a:focus-visible, .unlock:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .unlock { padding: 12px 14px; border-radius: 12px; cursor: pointer; background: var(--accent); color: #fff;
+      font-weight: 700; text-align: center; }
+    .alert { padding: 14px; border-radius: 14px; background: var(--hit); color: #fff; }
+    .alert.ringing { animation: flash 1s ease-in-out infinite; }
+    @keyframes flash { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--hit) 40%, transparent); } }
+    .alert h2 { font-size: 18px; }
+    .alert ul { list-style: none; margin-top: 6px; font-size: 15px; line-height: 1.7; }
+    .alert .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .alert a { color: var(--hit); background: #fff; text-decoration: none; font-weight: 700; padding: 7px 14px; border-radius: 10px; }
+    .alert button { background: transparent; color: #fff; border-color: rgba(255,255,255,.7); }
+    .error { padding: 12px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); line-height: 1.6; }
+    .card { background: var(--card); border-radius: 14px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+    tr:last-child td { border-bottom: none; }
+    th { font-size: 13px; color: var(--sub); font-weight: 600; }
+    th:first-child, td:first-child { text-align: left; padding-left: 14px; }
+    .cap { font-weight: 700; }
+    .color { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--sub); margin-left: 6px; }
+    .swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(128,128,128,.5); }
+    .price { display: block; font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+    tr.hit td { background: var(--hit-soft); }
+    tr.hit td:first-child { box-shadow: inset 4px 0 0 var(--hit); }
+    .pill { display: inline-block; min-width: 50px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+      color: var(--sub); background: var(--bg); }
+    .pill.yes { color: #fff; background: var(--hit); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(1.08); } }
+    .quote { display: block; font-size: 11px; color: var(--hit); font-weight: 600; margin-top: 2px; }
+    .empty { padding: 32px 14px; text-align: center !important; color: var(--sub); }
+    .log h2 { font-size: 15px; margin: 8px 0; }
+    .log ul { list-style: none; background: var(--card); border-radius: 14px; padding: 4px 14px; font-size: 13px; }
+    .log li { padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; }
+    .log li:last-child { border-bottom: none; }
+    .log time { color: var(--sub); font-variant-numeric: tabular-nums; }
+    .log .in { color: var(--hit); font-weight: 600; }
+    footer { text-align: center; font-size: 12px; color: var(--sub); }
+    @media (prefers-reduced-motion: reduce) { .pill.yes, .alert.ringing { animation: none; } }
+  `;
+  const HTML = `
+    <div class="panel"><div class="wrap">
+      <header>
+        <div class="head"><h1>iPhone Duo<small>南京取货库存</small></h1><button id="closeBtn">关闭监控</button></div>
+        <div class="meta"><span class="live" id="dot"></span><span id="status">正在查询…</span><span class="tag" id="demoTag" hidden>演示数据</span></div>
+      </header>
+      <div class="actions"><button id="refreshBtn">立即刷新</button><button id="testBtn">测试提醒</button><button id="muteBtn">声音：开</button></div>
+      <div class="unlock" id="unlock" role="button" tabindex="0">点这里启用声音提醒（浏览器要求先点一下才能出声）</div>
+      <div class="alert" id="alert" hidden>
+        <h2>南京门店有货了！</h2>
+        <ul id="alertList"></ul>
+        <div class="row"><a href="${BUY}" target="_blank" rel="noopener">去下单 ›</a><button id="ackBtn">知道了，停止响铃</button></div>
+      </div>
+      <div class="error" id="error" hidden></div>
+      <div class="card"><table id="grid"><tbody><tr><td class="empty">正在查询南京门店库存…</td></tr></tbody></table></div>
+      <section class="log"><h2>库存变化记录</h2><ul id="log"><li>暂无变化</li></ul></section>
+      <footer>每 20 秒自动查询一次 · 保持本标签页打开，电脑不要休眠</footer>
+    </div></div>`;
+
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<style>' + CSS + '</style>' + HTML;
+  document.body.appendChild(host);
+  const prevOverflow = document.documentElement.style.overflow;
+  document.documentElement.style.overflow = 'hidden';
+  const $ = id => root.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hhmmss = t => new Date(t).toLocaleTimeString('zh-CN', { hour12: false });
+
+  /* ---------- 声音与通知 ---------- */
+  let audio = null, muted = false;
+  function ensureAudio() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!audio && Ctx) audio = new Ctx();
+    if (audio && audio.state !== 'running') audio.resume().then(updateUnlock, () => {});
+    updateUnlock();
+  }
+  function updateUnlock() { $('unlock').hidden = !!audio && audio.state === 'running'; }
+  function playAlarm(force) {
+    if ((muted && !force) || !audio || audio.state !== 'running') return;
+    const t0 = audio.currentTime;
+    for (let i = 0; i < 6; i++) {
+      const osc = audio.createOscillator(), gain = audio.createGain(), t = t0 + i * 0.22;
+      osc.type = 'square';
+      osc.frequency.value = i % 2 ? 1320 : 880;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + 0.21);
+    }
+  }
+  function notify(text) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try { new Notification('iPhone Duo 南京有货！', { body: text, tag: 'duo-stock', renotify: true }); } catch (e) {}
+  }
+
+  /* ---------- 刷新与渲染 ---------- */
+  let countdown = 0, loading = false, checkedAt = 0, ticks = 0;
+  let avail = new Set(), prevAvail = null, acked = new Set(), logs = [];
+  const names = {};
+
+  async function refresh() {
+    if (loading) return;
+    loading = true;
+    $('status').textContent = '查询中…';
+    let stores = null, error = null;
+    try { stores = await fetchStock(); } catch (e) { error = e.message || String(e); }
+    loading = false;
+    countdown = INTERVAL;
+    checkedAt = Date.now();
+    $('dot').classList.toggle('bad', !!error);
+    $('error').hidden = !error;
+    $('demoTag').hidden = !demo;
+    if (error) $('error').textContent = '查询失败：' + error + '（' + INTERVAL + ' 秒后自动重试）';
+    else { renderGrid(stores); track(stores); }
+    renderStatus();
+  }
+
+  function renderGrid(stores) {
+    const head = '<thead><tr><th>型号</th>' + stores.map(s => '<th>' + esc(s.name) + '</th>').join('') + '</tr></thead>';
+    const rows = MODELS.map(([part, cap, color, price]) => {
+      let hit = false;
+      const cells = stores.map(s => {
+        const a = s.avail[part];
+        if (!a) return '<td><span class="pill">—</span></td>';
+        const yes = a.status === 'available';
+        hit = hit || yes;
+        return '<td><span class="pill' + (yes ? ' yes' : '') + '">' + (STATUS[a.status] || '未知') + '</span>' +
+          (yes && a.quote ? '<span class="quote">' + esc(a.quote) + '</span>' : '') + '</td>';
+      }).join('');
+      return '<tr class="' + (hit ? 'hit' : '') + '"><td><span class="cap">' + cap + '</span>' +
+        '<span class="color"><span class="swatch" style="background:' + SWATCH[color] + '"></span>' + color + '</span>' +
+        '<span class="price">¥' + price.toLocaleString('zh-CN') + ' · ' + part + '</span></td>' + cells + '</tr>';
+    }).join('');
+    $('grid').innerHTML = head + '<tbody>' + rows + '</tbody>';
+  }
+
+  function track(stores) {
+    avail = new Set();
+    for (const s of stores) {
+      for (const [part, cap, color] of MODELS) {
+        const key = part + '|' + s.number;
+        names[key] = s.name + ' · ' + cap + ' ' + color;
+        if (s.avail[part] && s.avail[part].status === 'available') avail.add(key);
+      }
+    }
+    const fresh = [...avail].filter(k => !prevAvail || !prevAvail.has(k));
+    const gone = prevAvail ? [...prevAvail].filter(k => !avail.has(k)) : [];
+    fresh.forEach(k => addLog(names[k] + ' 有货', true));
+    gone.forEach(k => addLog(names[k] + ' 已无货', false));
+    prevAvail = avail;
+    acked = new Set([...acked].filter(k => avail.has(k)));  /* 售罄后再到货要重新提醒 */
+    if (fresh.length) {
+      notify(fresh.map(k => names[k]).join('\n'));
+      playAlarm();
+    }
+    renderAlert();
+  }
+
+  const unacked = () => [...avail].filter(k => !acked.has(k)).length;
+  function renderAlert() {
+    $('alert').hidden = !avail.size;
+    $('alert').classList.toggle('ringing', unacked() > 0);
+    $('ackBtn').hidden = !unacked();
+    $('alertList').innerHTML = [...avail].map(k => '<li>' + esc(names[k]) + '</li>').join('');
+  }
+  function addLog(text, isIn) {
+    logs = [{ t: Date.now(), text, isIn }].concat(logs).slice(0, 30);
+    $('log').innerHTML = logs.map(l =>
+      '<li><time>' + hhmmss(l.t) + '</time><span class="' + (l.isIn ? 'in' : '') + '">' + esc(l.text) + '</span></li>').join('');
+  }
+  function renderStatus() {
+    if (!loading) $('status').textContent = (checkedAt ? '上次查询 ' + hhmmss(checkedAt) + ' · ' : '') + countdown + ' 秒后刷新';
+  }
+
+  /* ---------- 计时：后台标签页的主线程定时器会被降频，用 Worker 计时保证 20 秒准时 ---------- */
+  const TITLE = document.title;
+  function tick() {
+    ticks++;
+    if (!loading && --countdown <= 0) refresh();
+    renderStatus();
+    const ringing = unacked() > 0;
+    if (ringing && ticks % RING_EVERY === 0) playAlarm();
+    document.title = ringing && ticks % 2 ? '【有货】iPhone Duo' : TITLE;
+  }
+  let worker = null, timer = null;
+  try {
+    const src = URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 1000)'], { type: 'text/javascript' }));
+    worker = new Worker(src);
+    worker.onmessage = tick;
+  } catch (e) {
+    timer = setInterval(tick, 1000);
+  }
+
+  /* ---------- 交互 ---------- */
+  ['click', 'touchend', 'keydown'].forEach(ev => root.addEventListener(ev, ensureAudio));
+  $('unlock').onclick = () => {
+    ensureAudio();
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  };
+  $('refreshBtn').onclick = () => refresh();
+  $('testBtn').onclick = () => { ensureAudio(); setTimeout(() => playAlarm(true), 80); };
+  $('muteBtn').onclick = () => { muted = !muted; $('muteBtn').textContent = muted ? '声音：关' : '声音：开'; };
+  $('ackBtn').onclick = () => { acked = new Set(avail); renderAlert(); document.title = TITLE; };
+  $('closeBtn').onclick = () => {
+    if (worker) worker.terminate();
+    clearInterval(timer);
+    if (audio) audio.close();
+    host.remove();
+    document.documentElement.style.overflow = prevOverflow;
+    document.title = TITLE;
+    window.__duoMonitor = false;
+  };
+
+  ensureAudio();
+  refresh();
+}
+
+/* ---------- 本页：生成书签 ---------- */
+const bookmarkCode = 'javascript:void((' + duoMonitor.toString() + ')())';
+const bookmarkHref = 'javascript:' + encodeURIComponent(bookmarkCode.slice('javascript:'.length));
+const bm = document.getElementById('bookmark');
+bm.href = bookmarkHref;
+bm.addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('bmNote').textContent = '这个按钮要拖到书签栏，在 Apple 官网页面上点书签才有用。想先看效果，点第 3 步的演示。';
+});
+document.getElementById('demoBtn').onclick = () => duoMonitor({ demo: true });
+document.getElementById('copyBtn').onclick = () => {
+  const box = document.getElementById('codeBox');
+  const note = document.getElementById('copyNote');
+  const fallback = () => {
+    box.value = bookmarkHref;
+    box.hidden = false;
+    box.select();
+    note.textContent = '没能自动复制，请手动全选上面的代码并复制。';
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(bookmarkHref).then(() => { note.textContent = '已复制。按上面的步骤粘贴到书签的网址里。'; }, fallback);
+  } else {
+    fallback();
+  }
+};
+</script>
+</body>
+</html>
